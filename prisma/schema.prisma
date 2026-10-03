@@ -1,0 +1,112 @@
+generator client {
+  // Genera Prisma Client, que luego importaremos desde NestJS.
+  provider     = "prisma-client"
+
+  // Aquí quedará el código generado. Si cambias esta ruta, debes cambiar los imports.
+  output       = "../src/generated/prisma"
+
+  // Usamos CommonJS porque encaja bien con la configuración inicial de este proyecto.
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  // Motor de base de datos. En este tutorial usaremos PostgreSQL.
+  provider = "postgresql"
+}
+
+// Roles permitidos dentro del sistema. Puedes agregar más si tu negocio lo necesita.
+enum Role {
+  ADMIN
+  USER
+  SUPERVISOR
+}
+
+model User {
+  // Datos principales del usuario.
+  id            String         @id @default(uuid())
+  email         String         @unique
+  name          String
+  lastname      String?
+  phone         String?
+  address       String?
+  birthdate     DateTime?
+
+  // Nunca guardamos el password original, solo su hash.
+  passwordHash  String
+
+  // Si no se envía un rol, el usuario queda como USER.
+  role          Role           @default(USER)
+
+  // Permite desactivar usuarios sin borrarlos físicamente.
+  isActive      Boolean        @default(true)
+  foto          String?
+
+  // Relación: préstamos realizados por el usuario.
+  prestamos     Prestamo[]
+
+  // Relación: un usuario puede tener muchos refresh tokens.
+  refreshTokens RefreshToken[]
+
+  // Fechas automáticas de auditoría básica.
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  // Índices para consultas frecuentes por rol o estado.
+  @@index([role])
+  @@index([isActive])
+}
+
+model RefreshToken {
+  // Cada refresh token tendrá un id propio para poder revocarlo.
+  id        String    @id @default(uuid())
+
+  // Guardamos hash del refresh token, no el token plano.
+  tokenHash String    @unique
+
+  // Relación con User. Si se borra el usuario, se borran sus refresh tokens.
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Control de expiración y revocación.
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  // Índices útiles para buscar tokens por usuario o por expiración.
+  @@index([userId])
+  @@index([expiresAt])
+}
+model Herramienta {
+  id          String   @id @default(uuid())
+  nombre      String
+  descripcion String?
+  categoria   String?
+  stock       Int      @default(0)
+  disponible  Boolean  @default(true)
+  foto        String?
+
+  // Relación: préstamos de esta herramienta.
+  prestamos   Prestamo[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([categoria])
+  @@index([disponible])
+}
+
+model Prestamo {
+  id             String      @id @default(uuid())
+  usuarioId      String
+  usuario        User        @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  herramientaId  String
+  herramienta    Herramienta @relation(fields: [herramientaId], references: [id], onDelete: Cascade)
+  fechaPrestamo  DateTime    @default(now())
+  fechaDevolucion DateTime?
+  estado         String      @default("ACTIVO")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([usuarioId])
+  @@index([herramientaId])
+  @@index([estado])
+}
